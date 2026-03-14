@@ -1,31 +1,39 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ScrollView,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
-import { Spacing, BorderRadius, MIN_TOUCH_TARGET } from '@/constants/theme';
+import { Spacing, BorderRadius } from '@/constants/theme';
 import { Header } from '@/components/Header';
-import { Button } from '@/components/Button';
+import { Confetti } from '@/components/Confetti';
 import {
   WordleGameState,
+  TileState,
   createWordleGame,
   addLetter,
   removeLetter,
   submitGuess,
   getShareText,
   KEYBOARD_ROWS,
-  WORD_LENGTH,
   MAX_GUESSES,
   LetterStatus,
 } from '@/lib/wordle-game';
 import { recordGameResult } from '@/lib/rewards';
+import { tapFeedback, submitFeedback, successFeedback, errorFeedback } from '@/lib/haptics';
 
 function tileColor(status: LetterStatus): string {
   switch (status) {
@@ -40,9 +48,101 @@ function tileTextColor(status: LetterStatus): string {
   return status === 'empty' || status === 'absent' ? Colors.text : Colors.textOnPrimary;
 }
 
+interface AnimatedWordleTileProps {
+  tile: TileState;
+  colIdx: number;
+}
+
+function AnimatedWordleTile({ tile, colIdx }: AnimatedWordleTileProps) {
+  const rotation = useSharedValue(0);
+  const previousStatus = useRef(tile.status);
+
+  useEffect(() => {
+    if (previousStatus.current === 'empty' && tile.status !== 'empty') {
+      rotation.value = 0;
+      rotation.value = withDelay(
+        colIdx * 100,
+        withSequence(
+          withTiming(90, { duration: 160, easing: Easing.inOut(Easing.ease) }),
+          withTiming(180, { duration: 160, easing: Easing.inOut(Easing.ease) }),
+        ),
+      );
+    } else if (tile.status === 'empty') {
+      rotation.value = 0;
+    }
+
+    previousStatus.current = tile.status;
+  }, [colIdx, rotation, tile.status]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 900 }, { rotateX: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <Animated.View style={[styles.tileWrapper, animatedStyle]}>
+      <View
+        style={[
+          styles.tileFace,
+          styles.tileFront,
+          { borderColor: tile.letter ? Colors.textLight : Colors.border },
+        ]}
+      >
+        <Text style={[styles.tileLetter, { color: Colors.text }]}>{tile.letter}</Text>
+      </View>
+      <View
+        style={[
+          styles.tileFace,
+          styles.tileBack,
+          {
+            backgroundColor: tileColor(tile.status),
+            borderColor: tileColor(tile.status),
+          },
+        ]}
+      >
+        <Text style={[styles.tileLetter, { color: tileTextColor(tile.status) }]}>{tile.letter}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+interface AnimatedWordleRowProps {
+  children: React.ReactNode;
+  shouldShake: boolean;
+}
+
+function AnimatedWordleRow({ children, shouldShake }: AnimatedWordleRowProps) {
+  const translateX = useSharedValue(0);
+
+  useEffect(() => {
+    if (shouldShake) {
+      translateX.value = withSequence(
+        withTiming(-10, { duration: 40 }),
+        withTiming(10, { duration: 40 }),
+        withTiming(-10, { duration: 40 }),
+        withTiming(0, { duration: 40 }),
+      );
+    } else {
+      translateX.value = 0;
+    }
+  }, [shouldShake, translateX]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return <Animated.View style={[styles.row, animatedStyle]}>{children}</Animated.View>;
+}
+
 export default function WordleScreen() {
   const [game, setGame] = useState<WordleGameState>(createWordleGame);
   const [shakeRow, setShakeRow] = useState(-1);
+
+  useEffect(() => {
+    if (shakeRow < 0) return;
+
+    const timeout = setTimeout(() => setShakeRow(-1), 500);
+    return () => clearTimeout(timeout);
+  }, [shakeRow]);
 
   const handleKeyPress = useCallback(
     (key: string) => {
@@ -54,22 +154,27 @@ export default function WordleScreen() {
       }
 
       if (key === 'ENTER') {
+        submitFeedback();
         setGame((g) => {
           const result = submitGuess(g);
           if ('error' in result) {
+            errorFeedback();
             setShakeRow(g.currentRow);
-            setTimeout(() => setShakeRow(-1), 500);
             return g;
           }
           if (result.gameOver) {
             const stars = result.won ? Math.max(1, MAX_GUESSES - result.currentRow + 1) : 0;
             recordGameResult('wordle', result.won, stars);
+            if (result.won) {
+              successFeedback();
+            }
           }
           return result;
         });
         return;
       }
 
+      tapFeedback();
       setGame((g) => addLetter(g, key));
     },
     [game.gameOver],
@@ -77,30 +182,18 @@ export default function WordleScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Confetti visible={game.won} />
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         <Header emoji="🟩" title="Kid Wordle" subtitle="Guess the 4-letter word in 6 tries!" />
 
         {/* Tile Grid */}
         <View style={styles.grid}>
           {game.guesses.map((row, rowIdx) => (
-            <View key={rowIdx} style={[styles.row, shakeRow === rowIdx && styles.shake]}>
+            <AnimatedWordleRow key={rowIdx} shouldShake={shakeRow === rowIdx}>
               {row.map((tile, colIdx) => (
-                <View
-                  key={colIdx}
-                  style={[
-                    styles.tile,
-                    {
-                      backgroundColor: tileColor(tile.status),
-                      borderColor: tile.letter ? Colors.textLight : Colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tileLetter, { color: tileTextColor(tile.status) }]}>
-                    {tile.letter}
-                  </Text>
-                </View>
+                <AnimatedWordleTile key={colIdx} tile={tile} colIdx={colIdx} />
               ))}
-            </View>
+            </AnimatedWordleRow>
           ))}
         </View>
 
@@ -177,16 +270,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: TILE_GAP,
   },
-  shake: {
-    // Placeholder — Reanimated shake anim will replace this
-  },
-  tile: {
+  tileWrapper: {
     width: TILE_SIZE,
     height: TILE_SIZE,
+  },
+  tileFace: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: BorderRadius.sm,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    backfaceVisibility: 'hidden',
+  },
+  tileFront: {
+    backgroundColor: Colors.tileDefault,
+  },
+  tileBack: {
+    transform: [{ rotateX: '180deg' }],
   },
   tileLetter: {
     ...Typography.tile,

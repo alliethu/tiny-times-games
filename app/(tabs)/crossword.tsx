@@ -6,13 +6,22 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { Header } from '@/components/Header';
+import { Confetti } from '@/components/Confetti';
 import {
   CrosswordGameState,
+  CellState,
   createCrosswordGame,
   selectCell,
   inputLetter,
@@ -21,8 +30,8 @@ import {
   formatTime,
 } from '@/lib/crossword-game';
 import { recordGameResult } from '@/lib/rewards';
+import { tapFeedback, successFeedback } from '@/lib/haptics';
 
-const GRID_SIZE = 5;
 const CELL_SIZE = 60;
 const CELL_GAP = 2;
 
@@ -31,6 +40,56 @@ const KEYBOARD = [
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
   ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫'],
 ];
+
+interface AnimatedCrosswordCellProps {
+  cell: CellState;
+  isSelected: boolean;
+  highlighted: boolean;
+  onPress: () => void;
+}
+
+function AnimatedCrosswordCell({
+  cell,
+  isSelected,
+  highlighted,
+  onPress,
+}: AnimatedCrosswordCellProps) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (isSelected) {
+      scale.value = withSequence(
+        withTiming(1.05, { duration: 120, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 120, easing: Easing.inOut(Easing.quad) }),
+      );
+    } else {
+      scale.value = 1;
+    }
+  }, [isSelected, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={[
+          styles.cell,
+          highlighted && styles.highlightedCell,
+          isSelected && styles.selectedCell,
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {cell.number !== undefined && (
+          <Text style={styles.cellNumber}>{cell.number}</Text>
+        )}
+        <Text style={styles.cellLetter}>{cell.letter}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function CrosswordScreen() {
   const [game, setGame] = useState<CrosswordGameState>(createCrosswordGame);
@@ -45,10 +104,12 @@ export default function CrosswordScreen() {
   }, [game.gameOver, game.startTime]);
 
   const handleCellPress = useCallback((row: number, col: number) => {
+    tapFeedback();
     setGame((g) => selectCell(g, row, col));
   }, []);
 
   const handleKeyPress = useCallback((key: string) => {
+    tapFeedback();
     if (key === '⌫') {
       setGame((g) => deleteLetter(g));
     } else {
@@ -58,6 +119,7 @@ export default function CrosswordScreen() {
           const elapsed = getElapsed(result);
           const stars = elapsed < 60 ? 5 : elapsed < 120 ? 3 : elapsed < 300 ? 2 : 1;
           recordGameResult('crossword', true, stars);
+          successFeedback();
         }
         return result;
       });
@@ -75,6 +137,7 @@ export default function CrosswordScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Confetti visible={game.won} />
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         <Header emoji="✏️" title="Mini Crossword" subtitle="Fill in the puzzle!" />
 
@@ -104,21 +167,13 @@ export default function CrosswordScreen() {
                 }
 
                 return (
-                  <TouchableOpacity
+                  <AnimatedCrosswordCell
                     key={c}
-                    style={[
-                      styles.cell,
-                      highlighted && styles.highlightedCell,
-                      isSelected && styles.selectedCell,
-                    ]}
+                    cell={cell}
+                    isSelected={isSelected}
+                    highlighted={highlighted}
                     onPress={() => handleCellPress(r, c)}
-                    activeOpacity={0.7}
-                  >
-                    {cell.number !== undefined && (
-                      <Text style={styles.cellNumber}>{cell.number}</Text>
-                    )}
-                    <Text style={styles.cellLetter}>{cell.letter}</Text>
-                  </TouchableOpacity>
+                  />
                 );
               })}
             </View>

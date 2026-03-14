@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,20 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { Confetti } from '@/components/Confetti';
 import {
   TriviaGameState,
   createTriviaGame,
@@ -22,12 +30,82 @@ import {
   QUESTIONS_PER_DAY,
 } from '@/lib/trivia-game';
 import { recordGameResult } from '@/lib/rewards';
+import { tapFeedback, successFeedback, errorFeedback } from '@/lib/haptics';
+
+interface AnimatedChoiceButtonProps {
+  choice: string;
+  index: number;
+  backgroundColor: string;
+  borderColor: string;
+  textColor: string;
+  isCorrect: boolean;
+  revealed: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}
+
+function AnimatedChoiceButton({
+  choice,
+  index,
+  backgroundColor,
+  borderColor,
+  textColor,
+  isCorrect,
+  revealed,
+  disabled,
+  onPress,
+}: AnimatedChoiceButtonProps) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (revealed && isCorrect) {
+      scale.value = withSequence(
+        withTiming(1.05, { duration: 120, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 120, easing: Easing.inOut(Easing.quad) }),
+      );
+    } else {
+      scale.value = 1;
+    }
+  }, [isCorrect, revealed, scale]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={[styles.choiceButton, { backgroundColor, borderColor }]}
+        onPress={onPress}
+        disabled={disabled}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.choiceLetter, { color: textColor }]}>
+          {String.fromCharCode(65 + index)}
+        </Text>
+        <Text style={[styles.choiceText, { color: textColor }]}>{choice}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function TriviaScreen() {
   const [game, setGame] = useState<TriviaGameState>(createTriviaGame);
 
   const handleSelectAnswer = useCallback((index: number) => {
-    setGame((g) => selectAnswer(g, index));
+    tapFeedback();
+    setGame((g) => {
+      const result = selectAnswer(g, index);
+      if (result.revealed) {
+        const isCorrect = index === g.questions[g.currentIndex].correctIndex;
+        if (isCorrect) {
+          successFeedback();
+        } else {
+          errorFeedback();
+        }
+      }
+      return result;
+    });
   }, []);
 
   const handleNext = useCallback(() => {
@@ -45,6 +123,7 @@ export default function TriviaScreen() {
     const stars = getStarsForScore(game.score);
     return (
       <SafeAreaView style={styles.safe}>
+        <Confetti visible={game.score >= 8} />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Header emoji="💡" title="Daily Trivia" subtitle="Results" />
 
@@ -121,17 +200,17 @@ export default function TriviaScreen() {
         {/* Answer choices */}
         <View style={styles.choices}>
           {question.choices.map((choice, i) => {
-            let bg: string = Colors.surface;
+            let backgroundColor: string = Colors.surface;
             let borderColor: string = Colors.border;
             let textColor: string = Colors.text;
 
             if (game.revealed) {
               if (i === question.correctIndex) {
-                bg = Colors.success;
+                backgroundColor = Colors.success;
                 borderColor = Colors.success;
                 textColor = Colors.textOnPrimary;
               } else if (i === selectedAnswer && i !== question.correctIndex) {
-                bg = Colors.error;
+                backgroundColor = Colors.error;
                 borderColor = Colors.error;
                 textColor = Colors.textOnPrimary;
               }
@@ -140,18 +219,18 @@ export default function TriviaScreen() {
             }
 
             return (
-              <TouchableOpacity
+              <AnimatedChoiceButton
                 key={i}
-                style={[styles.choiceButton, { backgroundColor: bg, borderColor }]}
-                onPress={() => handleSelectAnswer(i)}
+                choice={choice}
+                index={i}
+                backgroundColor={backgroundColor}
+                borderColor={borderColor}
+                textColor={textColor}
+                isCorrect={i === question.correctIndex}
+                revealed={game.revealed}
                 disabled={game.revealed}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.choiceLetter, { color: textColor }]}>
-                  {String.fromCharCode(65 + i)}
-                </Text>
-                <Text style={[styles.choiceText, { color: textColor }]}>{choice}</Text>
-              </TouchableOpacity>
+                onPress={() => handleSelectAnswer(i)}
+              />
             );
           })}
         </View>

@@ -5,14 +5,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  FlatList,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { Confetti } from '@/components/Confetti';
 import {
   BeeGameState,
   BeeRank,
@@ -20,11 +26,11 @@ import {
   createBeeGame,
   addBeeLetter,
   removeBeeLastLetter,
-  clearBeeInput,
   shuffleBeeLetters,
   submitBeeWord,
 } from '@/lib/spelling-bee-game';
 import { recordGameResult } from '@/lib/rewards';
+import { tapFeedback, successFeedback, errorFeedback } from '@/lib/haptics';
 
 const RANK_COLORS: Record<BeeRank, string> = {
   Beginner: Colors.textLight,
@@ -34,17 +40,62 @@ const RANK_COLORS: Record<BeeRank, string> = {
   Genius: Colors.primary,
 };
 
+interface AnimatedHexCellProps {
+  letter: string;
+  onPress: () => void;
+  isCenter?: boolean;
+}
+
+function AnimatedHexCell({ letter, onPress, isCenter = false }: AnimatedHexCellProps) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = useCallback(() => {
+    scale.value = withSequence(
+      withTiming(0.9, { duration: 80 }),
+      withTiming(1, { duration: 80 }),
+    );
+    onPress();
+  }, [onPress, scale]);
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={[styles.hexCell, isCenter ? styles.centerCell : styles.outerCell]}
+        onPress={handlePress}
+        activeOpacity={0.6}
+      >
+        <Text style={[styles.hexLetter, isCenter && styles.centerLetter]}>{letter}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export default function SpellingBeeScreen() {
   const [game, setGame] = useState<BeeGameState>(createBeeGame);
   const [showWords, setShowWords] = useState(false);
 
   const handleLetterPress = useCallback((letter: string) => {
+    tapFeedback();
     setGame((g) => addBeeLetter(g, letter));
   }, []);
 
   const handleSubmit = useCallback(() => {
     setGame((g) => {
       const result = submitBeeWord(g);
+      const foundNewWord = result.foundWords.length > g.foundWords.length;
+
+      if (result.message === '🎉 PANGRAM!') {
+        successFeedback();
+      } else if (foundNewWord) {
+        successFeedback();
+      } else {
+        errorFeedback();
+      }
+
       if (result.gameOver) {
         recordGameResult('spelling-bee', true, 5);
       }
@@ -56,6 +107,7 @@ export default function SpellingBeeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <Confetti visible={game.gameOver} />
       <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
         <Header emoji="🐝" title="Spelling Bee" subtitle="How many words can you find?" />
 
@@ -93,55 +145,39 @@ export default function SpellingBeeScreen() {
           {/* Top row: 2 letters */}
           <View style={styles.hexRow}>
             {game.puzzle.outerLetters.slice(0, 2).map((letter, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[styles.hexCell, styles.outerCell]}
+              <AnimatedHexCell
+                key={`${letter}-${i}`}
+                letter={letter}
                 onPress={() => handleLetterPress(letter)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.hexLetter}>{letter}</Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
 
           {/* Middle row: outer + CENTER + outer */}
           <View style={styles.hexRow}>
-            <TouchableOpacity
-              style={[styles.hexCell, styles.outerCell]}
+            <AnimatedHexCell
+              letter={game.puzzle.outerLetters[2]}
               onPress={() => handleLetterPress(game.puzzle.outerLetters[2])}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.hexLetter}>{game.puzzle.outerLetters[2]}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.hexCell, styles.centerCell]}
+            />
+            <AnimatedHexCell
+              letter={game.puzzle.centerLetter}
               onPress={() => handleLetterPress(game.puzzle.centerLetter)}
-              activeOpacity={0.6}
-            >
-              <Text style={[styles.hexLetter, styles.centerLetter]}>{game.puzzle.centerLetter}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.hexCell, styles.outerCell]}
+              isCenter
+            />
+            <AnimatedHexCell
+              letter={game.puzzle.outerLetters[3]}
               onPress={() => handleLetterPress(game.puzzle.outerLetters[3])}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.hexLetter}>{game.puzzle.outerLetters[3]}</Text>
-            </TouchableOpacity>
+            />
           </View>
 
           {/* Bottom row: 2 letters */}
           <View style={styles.hexRow}>
             {game.puzzle.outerLetters.slice(4, 6).map((letter, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[styles.hexCell, styles.outerCell]}
+              <AnimatedHexCell
+                key={`${letter}-${i + 4}`}
+                letter={letter}
                 onPress={() => handleLetterPress(letter)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.hexLetter}>{letter}</Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         </View>
