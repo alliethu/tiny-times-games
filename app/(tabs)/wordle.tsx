@@ -54,52 +54,36 @@ interface AnimatedWordleTileProps {
 }
 
 function AnimatedWordleTile({ tile, colIdx }: AnimatedWordleTileProps) {
-  const rotation = useSharedValue(0);
+  const scale = useSharedValue(1);
   const previousStatus = useRef(tile.status);
 
   useEffect(() => {
     if (previousStatus.current === 'empty' && tile.status !== 'empty') {
-      rotation.value = 0;
-      rotation.value = withDelay(
+      scale.value = withDelay(
         colIdx * 100,
         withSequence(
-          withTiming(90, { duration: 160, easing: Easing.inOut(Easing.ease) }),
-          withTiming(180, { duration: 160, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.8, { duration: 120, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 120, easing: Easing.inOut(Easing.ease) }),
         ),
       );
-    } else if (tile.status === 'empty') {
-      rotation.value = 0;
     }
 
     previousStatus.current = tile.status;
-  }, [colIdx, rotation, tile.status]);
+  }, [colIdx, scale, tile.status]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ perspective: 900 }, { rotateX: `${rotation.value}deg` }],
+    transform: [{ scale: scale.value }],
   }));
+
+  const isRevealed = tile.status !== 'empty';
+  const bgColor = isRevealed ? tileColor(tile.status) : Colors.tileDefault;
+  const borderClr = isRevealed ? tileColor(tile.status) : (tile.letter ? Colors.textLight : Colors.border);
+  const textClr = isRevealed ? tileTextColor(tile.status) : Colors.text;
 
   return (
     <Animated.View style={[styles.tileWrapper, animatedStyle]}>
-      <View
-        style={[
-          styles.tileFace,
-          styles.tileFront,
-          { borderColor: tile.letter ? Colors.textLight : Colors.border },
-        ]}
-      >
-        <Text style={[styles.tileLetter, { color: Colors.text }]}>{tile.letter}</Text>
-      </View>
-      <View
-        style={[
-          styles.tileFace,
-          styles.tileBack,
-          {
-            backgroundColor: tileColor(tile.status),
-            borderColor: tileColor(tile.status),
-          },
-        ]}
-      >
-        <Text style={[styles.tileLetter, { color: tileTextColor(tile.status) }]}>{tile.letter}</Text>
+      <View style={[styles.tile, { backgroundColor: bgColor, borderColor: borderClr }]}>
+        <Text style={[styles.tileLetter, { color: textClr }]}>{tile.letter}</Text>
       </View>
     </Animated.View>
   );
@@ -274,19 +258,13 @@ const styles = StyleSheet.create({
     width: TILE_SIZE,
     height: TILE_SIZE,
   },
-  tileFace: {
-    ...StyleSheet.absoluteFillObject,
+  tile: {
+    width: '100%',
+    height: '100%',
     borderRadius: BorderRadius.sm,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backfaceVisibility: 'hidden',
-  },
-  tileFront: {
-    backgroundColor: Colors.tileDefault,
-  },
-  tileBack: {
-    transform: [{ rotateX: '180deg' }],
   },
   tileLetter: {
     ...Typography.tile,
