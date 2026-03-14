@@ -1,10 +1,15 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { UserProvider, useUser } from '@/lib/user-context';
+import { NamePromptModal } from '@/components/NamePromptModal';
 
-export default function RootLayout() {
+function AppContent() {
+  const { needsName, saveName } = useUser();
+
   return (
     <>
       <StatusBar style="dark" />
+      <NamePromptModal visible={needsName} onSubmit={saveName} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
@@ -17,5 +22,13 @@ export default function RootLayout() {
         />
       </Stack>
     </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <UserProvider>
+      <AppContent />
+    </UserProvider>
   );
 }

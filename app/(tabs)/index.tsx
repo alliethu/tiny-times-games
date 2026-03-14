@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,8 @@ import { Colors } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
 import { Spacing } from '@/constants/theme';
 import { Card } from '@/components/Card';
+import { useUser } from '@/lib/user-context';
+import { loadRewards } from '@/lib/rewards';
 
 const GAMES = [
   {
@@ -40,6 +42,19 @@ const GAMES = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { name } = useUser();
+  const [totalStars, setTotalStars] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+
+  useEffect(() => {
+    loadRewards().then((rewards) => {
+      setTotalStars(rewards.totalStars);
+      const maxStreak = Math.max(
+        ...Object.values(rewards.stats).map((s) => s.currentStreak),
+      );
+      setBestStreak(maxStreak);
+    });
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -50,15 +65,15 @@ export default function HomeScreen() {
       >
         <View style={styles.greeting}>
           <Text style={styles.wave}>👋</Text>
-          <Text style={styles.greetingText}>Hi Asher!</Text>
+          <Text style={styles.greetingText}>Hi {name || 'there'}!</Text>
           <Text style={styles.subtitle}>Ready to play today's games?</Text>
         </View>
 
         <View style={styles.streakBanner}>
           <Text style={styles.streakEmoji}>🔥</Text>
-          <Text style={styles.streakText}>0 day streak</Text>
+          <Text style={styles.streakText}>{bestStreak} day streak</Text>
           <Text style={styles.streakEmoji}>⭐</Text>
-          <Text style={styles.streakText}>0 stars</Text>
+          <Text style={styles.streakText}>{totalStars} stars</Text>
           <TouchableOpacity onPress={() => router.push('/stats')}>
             <Text style={styles.statsLink}>📊 Stats</Text>
           </TouchableOpacity>

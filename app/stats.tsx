@@ -6,6 +6,7 @@ import { Typography } from '@/constants/typography';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { Header } from '@/components/Header';
 import { loadRewards, GameType } from '@/lib/rewards';
+import { useUser } from '@/lib/user-context';
 
 const GAME_CONFIG: { key: GameType; label: string; emoji: string; color: string }[] = [
   { key: 'wordle', label: 'Kid Wordle', emoji: '🟩', color: Colors.wordle },
@@ -16,6 +17,7 @@ const GAME_CONFIG: { key: GameType; label: string; emoji: string; color: string 
 
 export default function StatsScreen() {
   const [rewards, setRewards] = useState<Awaited<ReturnType<typeof loadRewards>> | null>(null);
+  const { name } = useUser();
 
   useEffect(() => {
     loadRewards().then(setRewards);
@@ -32,7 +34,7 @@ export default function StatsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Header emoji="📊" title="Asher's Stats" subtitle="Keep up the great work!" />
+        <Header emoji="📊" title={`${name || 'Your'}'s Stats`} subtitle="Keep up the great work!" />
 
         {/* Overall */}
         <View style={styles.overallCard}>

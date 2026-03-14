@@ -65,9 +65,10 @@ export function nextQuestion(state: TriviaGameState): TriviaGameState {
 
 export function getStarsForScore(score: number): number {
   if (score === 10) return 5;
-  if (score >= 8) return 3;
-  if (score >= 6) return 2;
-  if (score >= 4) return 1;
+  if (score >= 9) return 4;
+  if (score >= 7) return 3;
+  if (score >= 5) return 2;
+  if (score >= 3) return 1;
   return 0;
 }
 
