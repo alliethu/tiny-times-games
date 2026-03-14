@@ -1,7 +1,7 @@
 const CACHE_NAME = 'tiny-times-v1';
 const URLS_TO_CACHE = [
-  '/',
-  '/manifest.json',
+  '/tiny-times-games/',
+  '/tiny-times-games/manifest.json',
 ];
 
 self.addEventListener('install', (event) => {

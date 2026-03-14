@@ -24,6 +24,9 @@
         "backgroundColor": "#6C63FF"
       }
     },
+    "experiments": {
+      "baseUrl": "/tiny-times-games"
+    },
     "web": {
       "bundler": "metro",
       "output": "single",

@@ -2,14 +2,14 @@
   "name": "Tiny Times Games",
   "short_name": "Tiny Times",
   "description": "All the puzzle fun of grown-up games, made for the way kids actually think.",
-  "start_url": "/",
+  "start_url": "/tiny-times-games/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FAFBFF",
   "theme_color": "#6C63FF",
   "icons": [
     {
-      "src": "/assets/icon.png",
+      "src": "/tiny-times-games/assets/icon.png",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
