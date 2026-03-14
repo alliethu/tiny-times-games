@@ -124,28 +124,26 @@ export function inputLetter(
   const newGrid = state.grid.map((row) => row.map((cell) => ({ ...cell })));
   newGrid[selectedRow][selectedCol].letter = letter.toUpperCase();
 
-  // Check if this cell is now correct
   newGrid[selectedRow][selectedCol].isCorrect =
     newGrid[selectedRow][selectedCol].letter === puzzle.grid[selectedRow][selectedCol];
 
-  // Auto-advance to next cell in current direction
+  // Advance to next cell within the active clue only
   let nextRow = selectedRow;
   let nextCol = selectedCol;
 
-  if (direction === 'across') {
-    nextCol = Math.min(4, selectedCol + 1);
-    while (nextCol < 5 && newGrid[nextRow][nextCol].isBlack) nextCol++;
-    if (nextCol >= 5) { nextRow = selectedRow; nextCol = selectedCol; }
-  } else {
-    nextRow = Math.min(4, selectedRow + 1);
-    while (nextRow < 5 && newGrid[nextRow][nextCol].isBlack) nextRow++;
-    if (nextRow >= 5) { nextRow = selectedRow; nextCol = selectedCol; }
+  if (state.activeClue) {
+    const clue = state.activeClue;
+    if (direction === 'across') {
+      const maxCol = clue.col + clue.answer.length - 1;
+      if (selectedCol < maxCol) nextCol = selectedCol + 1;
+    } else {
+      const maxRow = clue.row + clue.answer.length - 1;
+      if (selectedRow < maxRow) nextRow = selectedRow + 1;
+    }
   }
 
-  // Check if puzzle is complete
   const won = checkComplete(newGrid, puzzle);
-
-  const activeClue = findClueForCell(puzzle.clues, nextRow, nextCol, direction);
+  const activeClue = findClueForCell(puzzle.clues, nextRow, nextCol, direction) || state.activeClue;
 
   return {
     ...state,
@@ -160,13 +158,33 @@ export function inputLetter(
 
 export function deleteLetter(state: CrosswordGameState): CrosswordGameState {
   if (state.gameOver) return state;
-  const { selectedRow, selectedCol } = state;
+  const { selectedRow, selectedCol, direction } = state;
 
   const newGrid = state.grid.map((row) => row.map((cell) => ({ ...cell })));
 
   if (newGrid[selectedRow][selectedCol].letter) {
     newGrid[selectedRow][selectedCol].letter = '';
     newGrid[selectedRow][selectedCol].isCorrect = false;
+    return { ...state, grid: newGrid };
+  }
+
+  // Cell already empty — move back within the clue and clear that cell
+  if (state.activeClue) {
+    const clue = state.activeClue;
+    let prevRow = selectedRow;
+    let prevCol = selectedCol;
+
+    if (direction === 'across' && selectedCol > clue.col) {
+      prevCol = selectedCol - 1;
+    } else if (direction === 'down' && selectedRow > clue.row) {
+      prevRow = selectedRow - 1;
+    }
+
+    if (prevRow !== selectedRow || prevCol !== selectedCol) {
+      newGrid[prevRow][prevCol].letter = '';
+      newGrid[prevRow][prevCol].isCorrect = false;
+      return { ...state, grid: newGrid, selectedRow: prevRow, selectedCol: prevCol };
+    }
   }
 
   return { ...state, grid: newGrid };
