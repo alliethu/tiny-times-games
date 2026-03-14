@@ -220,27 +220,27 @@ export default function CrosswordScreen() {
             <Text style={styles.comeBack}>Come back tomorrow for a new puzzle!</Text>
           </View>
         )}
-
-        {/* Keyboard */}
-        <View style={styles.keyboard}>
-          {KEYBOARD.map((row, rowIdx) => (
-            <View key={rowIdx} style={styles.keyboardRow}>
-              {row.map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  style={[styles.key, key === '⌫' && styles.specialKey]}
-                  onPress={() => handleKeyPress(key)}
-                  activeOpacity={0.6}
-                >
-                  <Text style={[styles.keyText, key === '⌫' && styles.specialKeyText]}>
-                    {key}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-        </View>
       </ScrollView>
+
+      {/* Keyboard — pinned at bottom */}
+      <View style={styles.keyboard}>
+        {KEYBOARD.map((row, rowIdx) => (
+          <View key={rowIdx} style={styles.keyboardRow}>
+            {row.map((key) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.key, key === '⌫' && styles.specialKey]}
+                onPress={() => handleKeyPress(key)}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.keyText, key === '⌫' && styles.specialKeyText]}>
+                  {key}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </View>
     </SafeAreaView>
   );
 }
@@ -381,6 +381,10 @@ const styles = StyleSheet.create({
   keyboard: {
     gap: 6,
     paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.background,
   },
   keyboardRow: {
     flexDirection: 'row',
